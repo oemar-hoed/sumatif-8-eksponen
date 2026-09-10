@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ujian Matematika - Pak Oemar Hoed</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1, h2, h3 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 12px 20px; cursor: pointer; border-radius: 5px; font-size: 16px; width: 100%; margin-top: 10px; }
+        button:hover { background: #0056b3; }
+        button.wa-btn { background: #25d366; }
+        button.png-btn { background: #ff9800; }
+        #exam-screen, #result-screen, #cheat-warning, #confirm-screen { display: none; }
+        .question-card { border: 1px solid #eee; padding: 15px; border-radius: 5px; margin-bottom: 15px; background: #fafafa; }
+        .options label { display: block; margin-bottom: 8px; cursor: pointer; }
+        textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        #cheat-warning { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: red; color: white; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        #cheat-warning h1 { color: white; font-size: 3em; }
+    </style>
+</head>
+<body>
+
+<div id="cheat-warning">
+    <h1>PERINGATAN!</h1>
+    <p>Anda keluar dari mode ujian. Segera kembali ke layar penuh untuk melanjutkan!</p>
+    <button onclick="enterFullScreen()" style="max-width: 300px; background: white; color: red;">Kembali ke Ujian</button>
+</div>
+
+<div class="container" id="login-screen">
+    <h1>Ujian Matematika</h1>
+    <p style="text-align:center;">Materi: Eksponen, Bentuk Akar, dan Notasi Ilmiah</p>
+    <div class="form-group">
+        <label>Nama Lengkap</label>
+        <input type="text" id="student-name" required>
+    </div>
+    <div class="form-group">
+        <label>Kelas</label>
+        <input type="text" id="student-class" required>
+    </div>
+    <div class="form-group">
+        <label>Nomor Presensi</label>
+        <input type="number" id="student-id" required>
+    </div>
+    <button onclick="startExam()">Mulai Ujian</button>
+</div>
+
+<div class="container" id="exam-screen">
+    <h2>Kerjakan Soal Berikut</h2>
+    <div id="questions-container"></div>
+    <button onclick="showConfirm()">Selesai Ujian</button>
+</div>
+
+<div class="container" id="confirm-screen">
+    <h2>Konfirmasi Selesai</h2>
+    <p>Apakah Anda yakin telah menyelesaikan semua soal? Anda tidak dapat kembali setelah ini.</p>
+    <button onclick="submitExam()" style="background: #28a745;">Ya, Kumpulkan Ujian</button>
+    <button onclick="backToExam()" style="background: #dc3545;">Batal, Kembali Mengerjakan</button>
+</div>
+
+<div class="container" id="result-screen">
+    <div id="result-card" style="padding: 20px; background: white;">
+        <h2>Hasil Ujian Selesai</h2>
+        <p><strong>Nama:</strong> <span id="res-name"></span></p>
+        <p><strong>Kelas:</strong> <span id="res-class"></span></p>
+        <p><strong>No. Presensi:</strong> <span id="res-id"></span></p>
+        <p><strong>Skor Objektif (PG & PGK):</strong> <span id="res-score"></span> / 50</p>
+        <p><strong>Jumlah Pelanggaran:</strong> <span id="res-cheat" style="color:red; font-weight:bold;"></span> kali</p>
+        <p><em>*Soal uraian akan dikoreksi manual oleh guru.</em></p>
+    </div>
+    <button class="wa-btn" onclick="sendWA()">Kirim ke WhatsApp Guru</button>
+    <button class="png-btn" onclick="downloadPNG()">Simpan Hasil (.png)</button>
+</div>
+
+<script>
+    // URL Google Apps Script Anda (Isi setelah membuat script)
+    const SPREADSHEET_URL = "https://script.google.com/macros/s/AKfycbxWcUoz2G4P_a8PoJAvLKwA0ABZvYbC_oxW-YBhGUYwnKLSCCPZbpjBgxpOb4OPN2DmIg/exec";
+    const GURU_WA = "6281231239331"; // Ganti nomor WA Anda
+
+    const pgTunggal = [
+        { q: "Hasil dari 2<sup>3</sup> &times; 2<sup>4</sup> adalah...", o: ["128", "64", "32", "256"], a: 0 },
+        { q: "Bentuk sederhana dari 5<sup>-2</sup> adalah...", o: ["1/25", "-25", "-10", "1/10"], a: 0 },
+        { q: "Hasil dari &radic;50 + &radic;32 adalah...", o: ["9&radic;2", "8&radic;2", "18&radic;2", "9"], a: 0 },
+        { q: "Rasionalkan bentuk 6 / &radic;3", o: ["2&radic;3", "3&radic;3", "6&radic;3", "2"], a: 0 },
+        { q: "Notasi ilmiah dari 0,000045 adalah...", o: ["4,5 &times; 10<sup>-5</sup>", "45 &times; 10<sup>-6</sup>", "4,5 &times; 10<sup>5</sup>", "0,45 &times; 10<sup>-4</sup>"], a: 0 },
+        { q: "HOTS: Selembar kertas tebalnya 0,012 cm dilipat 5 kali. Tebal kertas sekarang adalah...", o: ["0,384 cm", "0,192 cm", "0,060 cm", "0,768 cm"], a: 0 },
+        { q: "Bentuk sederhana dari (2<sup>5</sup> &times; 3<sup>2</sup>) / (2<sup>3</sup> &times; 3) adalah...", o: ["12", "18", "6", "24"], a: 0 },
+        { q: "Hasil dari &radic;12 &times; &radic;3 adalah...", o: ["6", "9", "18", "36"], a: 0 },
+        { q: "Sifat perpangkatan (a<sup>m</sup>)<sup>n</sup> sama dengan...", o: ["a<sup>m &times; n</sup>", "a<sup>m + n</sup>", "a<sup>m - n</sup>", "a<sup>m / n</sup>"], a: 0 },
+        { q: "Massa bumi adalah 5.970.000.000.000.000.000.000.000 kg. Notasi ilmiahnya adalah...", o: ["5,97 &times; 10<sup>24</sup> kg", "59,7 &times; 10<sup>23</sup> kg", "5,97 &times; 10<sup>25</sup> kg", "5,97 &times; 10<sup>22</sup> kg"], a: 0 }
+    ];
+
+    const pgKompleks = [
+        { q: "Pilih pernyataan yang BENAR mengenai sifat eksponen (Jawaban bisa lebih dari satu):", o: ["a<sup>m</sup> &times; a<sup>n</sup> = a<sup>m+n</sup>", "a<sup>-n</sup> = 1/a<sup>n</sup>", "a<sup>0</sup> = 0", "(a/b)<sup>n</sup> = a<sup>n</sup>/b<sup>n</sup>"], a: [0,1,3] },
+        { q: "Manakah bentuk akar yang senilai dengan 2&radic;3 ?", o: ["&radic;12", "6 / &radic;3", "&radic;3 + &radic;3", "&radic;8 + &radic;4"], a: [0,1,2] },
+        { q: "Pernyataan yang tepat tentang notasi ilmiah a &times; 10<sup>n</sup> adalah...", o: ["1 &le; a &lt; 10", "n adalah bilangan bulat", "a boleh bernilai 15", "n selalu bernilai positif"], a: [0,1] },
+        { q: "Bentuk sederhana dari (x<sup>2</sup>y<sup>3</sup>) / (xy) adalah... (Pilih bentuk senilai)", o: ["xy<sup>2</sup>", "x &times; y &times; y", "x<sup>3</sup>y<sup>4</sup>", "x<sup>2</sup>y"], a: [0,1] },
+        { q: "HOTS: Jika 3<sup>x</sup> = 81 dan 2<sup>y</sup> = 16, maka pernyataan yang benar adalah...", o: ["x = 4", "y = 4", "x + y = 8", "x - y = 1"], a: [0,1,2] }
+    ];
+
+    const uraian = [
+        "Rasionalkan penyebut dari bentuk: 3 / (&radic;5 - &radic;2)",
+        "Sebuah bakteri membelah diri menjadi dua setiap 20 menit. Jika awalnya ada 15 bakteri, berapa jumlahnya setelah 2 jam? (Tulis proses hitung eksponennya)",
+        "Buktikan dengan sifat pembagian eksponen mengapa a<sup>0</sup> = 1 (untuk a &ne; 0)!",
+        "Tentukan hasil operasi dari: 3&radic;2 &times; 4&radic;6",
+        "HOTS: Kecepatan cahaya adalah 3 &times; 10<sup>8</sup> m/s. Jika jarak bumi ke bulan adalah 384.000 km, berapa detik waktu tempuh cahaya dari bumi ke bulan? (Gunakan notasi ilmiah)"
+    ];
+
+    let cheatCount = 0;
+    let isExamActive = false;
+    let audioCtx, oscillator;
+    let studentData = {};
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function renderQuestions() {
+        const container = document.getElementById("questions-container");
+        let html = "";
+        let qNum = 1;
+
+        // Render PG Tunggal
+        html += `<h3>A. Pilihan Ganda (Tunggal)</h3>`;
+        shuffle(pgTunggal).forEach((q, idx) => {
+            html += `<div class="question-card"><p><b>${qNum}.</b> ${q.q}</p><div class="options">`;
+            let ops = q.o.map((opt, i) => ({ text: opt, isCorrect: i === q.a }));
+            shuffle(ops).forEach((opt, i) => {
+                html += `<label><input type="radio" name="pg_${idx}" value="${opt.isCorrect ? 1 : 0}"> ${opt.text}</label>`;
+            });
+            html += `</div></div>`;
+            qNum++;
+        });
+
+        // Render PG Kompleks
+        html += `<h3>B. Pilihan Ganda Kompleks (Lebih dari 1 Jawaban)</h3>`;
+        shuffle(pgKompleks).forEach((q, idx) => {
+            html += `<div class="question-card"><p><b>${qNum}.</b> ${q.q}</p><div class="options">`;
+            let ops = q.o.map((opt, i) => ({ text: opt, isCorrect: q.a.includes(i) }));
+            shuffle(ops).forEach((opt, i) => {
+                html += `<label><input type="checkbox" name="pgk_${idx}" value="${opt.isCorrect ? 1 : 0}"> ${opt.text}</label>`;
+            });
+            html += `</div></div>`;
+            qNum++;
+        });
+
+        // Render Uraian
+        html += `<h3>C. Uraian</h3>`;
+        shuffle(uraian).forEach((q, idx) => {
+            html += `<div class="question-card"><p><b>${qNum}.</b> ${q}</p>
+                     <textarea name="uraian_${idx}" placeholder="Tulis jawaban Anda di sini..."></textarea></div>`;
+            qNum++;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function startExam() {
+        studentData = {
+            name: document.getElementById('student-name').value,
+            class: document.getElementById('student-class').value,
+            id: document.getElementById('student-id').value
+        };
+        if(!studentData.name || !studentData.class || !studentData.id) return alert("Lengkapi identitas!");
+        
+        enterFullScreen();
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('exam-screen').style.display = 'block';
+        isExamActive = true;
+        renderQuestions();
+    }
+
+    function enterFullScreen() {
+        let el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        document.getElementById('cheat-warning').style.display = 'none';
+        stopAlarm();
+    }
+
+    function playAlarm() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!oscillator) {
+            oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+            oscillator.connect(audioCtx.destination);
+            oscillator.start();
+        }
+    }
+
+    function stopAlarm() {
+        if (oscillator) {
+            oscillator.stop();
+            oscillator.disconnect();
+            oscillator = null;
+        }
+    }
+
+    // Anti-Cheat Detectors
+    document.addEventListener('visibilitychange', () => {
+        if (isExamActive && document.hidden) handleCheat();
+    });
+    document.addEventListener('fullscreenchange', () => {
+        if (isExamActive && !document.fullscreenElement) handleCheat();
+    });
+
+    function handleCheat() {
+        cheatCount++;
+        document.getElementById('cheat-warning').style.display = 'flex';
+        playAlarm();
+    }
+
+    function showConfirm() {
+        document.getElementById('exam-screen').style.display = 'none';
+        document.getElementById('confirm-screen').style.display = 'block';
+    }
+
+    function backToExam() {
+        document.getElementById('confirm-screen').style.display = 'none';
+        document.getElementById('exam-screen').style.display = 'block';
+    }
+
+    function submitExam() {
+        isExamActive = false;
+        let score = 0;
+        
+        // Hitung PG Tunggal (3 poin)
+        pgTunggal.forEach((_, i) => {
+            let sel = document.querySelector(`input[name="pg_${i}"]:checked`);
+            if(sel && sel.value == "1") score += 3;
+        });
+
+        // Hitung PG Kompleks (4 poin jika benar semua pilihan yang dipilih, ini perhitungan sederhana)
+        pgKompleks.forEach((_, i) => {
+            let boxes = document.querySelectorAll(`input[name="pgk_${i}"]:checked`);
+            let isCorrect = true;
+            let correctSelectedCount = 0;
+            boxes.forEach(b => { 
+                if(b.value == "0") isCorrect = false; 
+                else correctSelectedCount++;
+            });
+            // Asumsi 4 poin jika memilih minimal 1 jawaban benar tanpa ada yang salah
+            if(isCorrect && correctSelectedCount > 0) score += 4; 
+        });
+
+        document.getElementById('res-name').innerText = studentData.name;
+        document.getElementById('res-class').innerText = studentData.class;
+        document.getElementById('res-id').innerText = studentData.id;
+        document.getElementById('res-score').innerText = score;
+        document.getElementById('res-cheat').innerText = cheatCount;
+
+        document.getElementById('confirm-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'block';
+
+        if(document.fullscreenElement) document.exitFullscreen();
+        saveToSpreadsheet(score);
+    }
+
+    function saveToSpreadsheet(score) {
+        if(SPREADSHEET_URL.includes("URL_GOOGLE")) return; // Skip if URL not set
+        fetch(SPREADSHEET_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nama: studentData.name, kelas: studentData.class, presensi: studentData.id, skor: score, cheat: cheatCount })
+        });
+    }
+
+    function sendWA() {
+        let text = `*HASIL UJIAN MATEMATIKA*\n\nNama: ${studentData.name}\nKelas: ${studentData.class}\nNo Presensi: ${studentData.id}\n\n*Skor PG & PGK:* ${document.getElementById('res-score').innerText}\n*Jumlah Pelanggaran:* ${cheatCount} kali\n\n_Soal Uraian mohon dicek di lembar/aplikasi._`;
+        window.open(`https://api.whatsapp.com/send?phone=${GURU_WA}&text=${encodeURIComponent(text)}`);
+    }
+
+    function downloadPNG() {
+        html2canvas(document.querySelector("#result-card")).then(canvas => {
+            let link = document.createElement('a');
+            link.download = `Hasil_Ujian_${studentData.name}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        });
+    }
+</script>
+</body>
+</html>
